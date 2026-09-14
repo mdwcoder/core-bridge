@@ -127,14 +127,32 @@ def _execute(engine: str, p: dict) -> tuple[int, dict]:
 
 
 # --- HTTP -------------------------------------------------------------------
+_CORS_ORIGIN = os.environ.get("BRIDGE_CORS_ORIGIN", "*")
+_CORS_METHODS = "GET, POST, OPTIONS"
+_CORS_HEADERS = "Content-Type, Authorization"
+
+
 class Handler(BaseHTTPRequestHandler):
+    def _cors_headers(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", _CORS_ORIGIN)
+        self.send_header("Access-Control-Allow-Methods", _CORS_METHODS)
+        self.send_header("Access-Control-Allow-Headers", _CORS_HEADERS)
+
     def _send(self, status: int, payload: dict) -> None:
         body = json.dumps(payload, ensure_ascii=False, default=_json_default).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self._cors_headers()
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self) -> None:
+        # preflight CORS
+        self.send_response(204)
+        self._cors_headers()
+        self.send_header("Access-Control-Max-Age", "86400")
+        self.end_headers()
 
     def do_GET(self) -> None:
         if self.path == "/health":
